@@ -62,7 +62,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-dev-secret-at-least-32-bytes-long-0123456789}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-change-me-internal-key}
       IDENTITY_SERVICE_URL: http://identity-service:8081
-      WEEKEND_DAYS: ${WEEKEND_DAYS:-SATURDAY,SUNDAY}
+      WEEKEND_DAYS: "${WEEKEND_DAYS:-SATURDAY,SUNDAY}"
       BACKDATE_DAYS: ${BACKDATE_DAYS:-7}
       ESCALATION_DAYS: ${ESCALATION_DAYS:-3}
       ESCALATION_CRON: ${ESCALATION_CRON:-0 0 * * * *}

@@ -24,10 +24,17 @@
         <spring-boot.version>3.5.0</spring-boot.version>
         <spring-cloud.version>2025.0.0</spring-cloud.version>
         <jjwt.version>0.12.6</jjwt.version>
+        <hibernate.version>6.6.2.Final</hibernate.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <!-- Explicit pin: declared before the BOM imports so it wins over the Boot-managed version -->
+            <dependency>
+                <groupId>org.hibernate.orm</groupId>
+                <artifactId>hibernate-core</artifactId>
+                <version>${hibernate.version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>

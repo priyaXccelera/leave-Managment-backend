@@ -1,6 +1,6 @@
 # checkpoint — Employee Leave Management (Java 21 / Spring Boot 3.5.0 / Maven / PostgreSQL 17.2)
 
-Project root: /outputs/job-0205d132-c36e-4c5e-9739-d31b55b82571/  (Maven multi-module; no wrapper; build via docker maven:3.9.9-eclipse-temurin-21)
+Project root: repository root  (Maven multi-module; no wrapper; build via docker maven:3.9.9-eclipse-temurin-21)
 
 ## Stack (immutable)
 Java 21, Spring Boot 3.5.0, Spring Cloud 2025.0.0 (gateway only), Maven, PostgreSQL via JPA/Hibernate + Flyway, jjwt 0.12.6.
@@ -64,6 +64,7 @@ See task spec in orchestrator prompt; key: statuses PENDING_MANAGER, PENDING_HR,
 Apply endpoint: POST /api/v1/leave-requests accepts multipart (part `data` JSON or flat form fields, + part `attachment`) OR application/json; returns 201 with LeaveRequestDto. attachmentUrl = `/api/v1/leave-requests/{id}/attachment`.
 
 ## Status
+- Verifier fixes round 3: Hibernate pinned to 6.6.2.Final via explicit `org.hibernate.orm:hibernate-core` entry in parent pom dependencyManagement (before BOM imports; property alone does not override an imported BOM). Proof: `mvn dependency:tree -Dincludes=org.hibernate.orm` -> `org.hibernate.orm:hibernate-core:jar:6.6.2.Final:compile` (identity-service and leave-service). `mvn -B verify` vs real PG 17.2: identity 45, leave 75, gateway 19 tests, 0 failures, BUILD SUCCESS. Also: tests-artifacts/ added to .gitignore; WEEKEND_DAYS quoted in compose; absolute path removed from this file.
 | Step | Status |
 |---|---|
 | parent pom, common, .gitignore | DONE |
