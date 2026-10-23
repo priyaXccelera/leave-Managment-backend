@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: ${TEST_DB_URL:jdbc:postgresql://localhost:5432/app}?currentSchema=leave_test
+    username: ${TEST_DB_USER:postgres}
+    password: ${TEST_DB_PASSWORD:postgres}
+  flyway:
+    schemas: leave_test
+    default-schema: leave_test
+    create-schemas: true
+    clean-disabled: false
+
+leave:
+  jwt-secret: test-secret-test-secret-test-secret-0123456789
+  internal-api-key: test-internal-key
+  identity-url: http://localhost:1
+  upload-dir: ${java.io.tmpdir}/leave-service-test-uploads
+  seed-holidays: false

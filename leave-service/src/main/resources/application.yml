@@ -1,0 +1,58 @@
+server:
+  port: ${SERVER_PORT:8082}
+  shutdown: graceful
+
+spring:
+  application:
+    name: leave-service
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    url: ${LEAVE_DB_URL}
+    username: ${LEAVE_DB_USER}
+    password: ${LEAVE_DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jackson:
+    time-zone: UTC
+    serialization:
+      write-dates-as-timestamps: false
+  mvc:
+    throw-exception-if-no-handler-found: true
+  web:
+    resources:
+      add-mappings: false
+  servlet:
+    multipart:
+      max-file-size: ${MAX_UPLOAD_MB:5}MB
+      max-request-size: ${MAX_UPLOAD_MB:5}MB
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+leave:
+  jwt-secret: ${JWT_SECRET}
+  internal-api-key: ${INTERNAL_API_KEY}
+  identity-url: ${IDENTITY_SERVICE_URL}
+  weekend-days: ${WEEKEND_DAYS:SATURDAY,SUNDAY}
+  backdate-days: ${BACKDATE_DAYS:7}
+  escalation-days: ${ESCALATION_DAYS:3}
+  upload-dir: ${UPLOAD_DIR:./uploads}
+  max-upload-mb: ${MAX_UPLOAD_MB:5}
+  escalation-cron: "${ESCALATION_CRON:0 0 * * * *}"
+  year-end-cron: "${YEAR_END_CRON:0 10 0 1 1 *}"

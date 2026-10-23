@@ -67,9 +67,9 @@ Apply endpoint: POST /api/v1/leave-requests accepts multipart (part `data` JSON 
 | Step | Status |
 |---|---|
 | parent pom, common, .gitignore | DONE |
-| identity-service | TODO |
-| leave-service part A (infra/domain/balances/masters) | TODO |
+| identity-service | DONE — 45 tests pass (mvn -pl identity-service test, real PG, schema identity_test). Extras: GET /health; AppProperties (@ConfigurationProperties "app"); filters LoginRateLimiter/InternalKeyFilter are NOT beans (chain only); /api/v1/employees/** also guarded hasRole(HR) in chain; refresh invalid => 401 INVALID_REFRESH_TOKEN; wrong current password => 400 INVALID_CURRENT_PASSWORD; HR self-deactivate => 400 CANNOT_DEACTIVATE_SELF; demote manager w/ reports => 409 MANAGER_HAS_REPORTS; logout requires bearer. Dockerfile at identity-service/Dockerfile (context = repo root, copies all module poms). Not run: docker build, real boot. |
+| leave-service part A (infra/domain/balances/masters) | DONE (32 tests green vs real PG: WorkingDayCalculatorTest 10, BalanceServiceTest 15, MasterDataApiTest 7). Extra config keys: leave.jwt-secret/internal-api-key/identity-url (LeaveProperties), leave.seed-holidays (default true; false in test). Test base: com.company.leave.leaves.AbstractIntegrationTest (+TestFlywayConfig). Dockerfile at leave-service/Dockerfile, context=repo root. Part B may add repo methods; LeaveRequestRepository has lockById/findOverlapping/findInRange*/findOnLeave*. |
 | leave-service part B (workflow/query/reports/dashboard/tests) | TODO |
-| api-gateway | TODO |
+| api-gateway | DONE (16 tests green, jar builds; prefix spring.cloud.gateway.server.webflux; Boot 3.5 codec key spring.http.codecs.max-in-memory-size; fail-fast via RequiredEnvListener; Dockerfile at api-gateway/Dockerfile, context=repo root) |
 | docker-compose, Dockerfiles, .env.example, README, openapi | TODO |
 | mvn verify + boot verification + curl probes | TODO |

@@ -1,0 +1,66 @@
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+spring:
+  application:
+    name: api-gateway
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  http:
+    codecs:
+      # allow >= 10MB in-memory buffering for any codec-based handling (bodies are otherwise streamed)
+      max-in-memory-size: 10MB
+  main:
+    web-application-type: reactive
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 3000
+            response-timeout: 30s
+          globalcors:
+            add-to-simple-url-handler-mapping: true
+            cors-configurations:
+              '[/**]':
+                allowed-origin-patterns: "${CORS_ALLOWED_ORIGINS:*}"
+                allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+                allowed-headers: "*"
+                exposed-headers: Content-Disposition,Retry-After,Allow
+                allow-credentials: false
+                max-age: 3600
+          default-filters:
+            # services do not emit CORS headers; if one ever does, keep only the gateway's value
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+          # NOTE: /internal/** is deliberately NOT routed.
+          routes:
+            - id: leave-service-employee-balances
+              order: 1
+              uri: ${LEAVE_SERVICE_URL}
+              predicates:
+                - Path=/api/v1/employees/*/leave-balances,/api/v1/employees/*/leave-balances/**
+            - id: identity-service
+              order: 2
+              uri: ${IDENTITY_SERVICE_URL}
+              predicates:
+                - Path=/api/v1/auth,/api/v1/auth/**,/api/v1/employees,/api/v1/employees/**
+            - id: leave-service
+              order: 3
+              uri: ${LEAVE_SERVICE_URL}
+              predicates:
+                - Path=/api/v1/leave-balances,/api/v1/leave-balances/**,/api/v1/leave-requests,/api/v1/leave-requests/**,/api/v1/leave-types,/api/v1/leave-types/**,/api/v1/holidays,/api/v1/holidays/**,/api/v1/reports,/api/v1/reports/**,/api/v1/notifications,/api/v1/notifications/**,/api/v1/dashboard,/api/v1/dashboard/**,/api/v1/team,/api/v1/team/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    root: INFO
+    com.company.leave.gateway: INFO

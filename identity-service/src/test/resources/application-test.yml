@@ -1,0 +1,20 @@
+spring:
+  datasource:
+    url: ${TEST_DB_URL:jdbc:postgresql://localhost:5432/app}?currentSchema=identity_test
+    username: ${TEST_DB_USER:postgres}
+    password: ${TEST_DB_PASSWORD:postgres}
+  flyway:
+    schemas: identity_test
+    default-schema: identity_test
+    create-schemas: true
+    clean-disabled: false
+
+app:
+  jwt-secret: test-secret-test-secret-test-secret-0123456789
+  access-token-ttl-seconds: 900
+  refresh-token-ttl-days: 7
+  internal-api-key: test-internal-key
+  leave-service-url: http://localhost:65530
+  seed-password: Password@123
+  login-rate-limit: 5
+  login-rate-window-seconds: 60
