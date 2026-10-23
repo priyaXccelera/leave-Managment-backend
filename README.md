@@ -7,7 +7,7 @@ The public REST contract lives under `/api/v1` (see [docs/openapi.yaml](docs/ope
 
 | Module | Port | Responsibility |
 |---|---|---|
-| `api-gateway` | 8080 (only published port) | Spring Cloud Gateway: path routing, env-configurable CORS, `GET /health`, JSON errors. `/internal/**` is **not** routed. |
+| `api-gateway` | 8000 (only published port) | Spring Cloud Gateway: path routing, env-configurable CORS, `GET /health`, Swagger UI at `/docs`, OpenAPI spec at `/openapi.yaml` and `/v3/api-docs`, JSON errors. `/internal/**` is **not** routed. |
 | `identity-service` | 8081 | DB `identity_db`: employees, refresh tokens, auth (login / refresh / logout / change-password / me), employee CRUD, login rate limiting, internal directory API (`/internal/employees/**`). |
 | `leave-service` | 8082 | DB `leave_db`: leave types, holidays, balances, adjustment log, leave requests, approval history, notifications, reports, dashboard, team calendar, scheduled jobs (escalation, year-end carry forward). |
 | `common` | - | Response envelope, `ApiException`, global exception handler, HS256 JWT service/filter, `AuthUser`. |
@@ -27,11 +27,11 @@ The public REST contract lives under `/api/v1` (see [docs/openapi.yaml](docs/ope
 ```bash
 cp .env.example .env        # optional: compose has development defaults for every variable
 docker compose up -d --build
-curl http://localhost:8080/health
+curl http://localhost:8000/health   # Swagger UI: http://localhost:8000/docs
 ```
 
 Compose starts `postgres:17.2` (databases `identity_db` and `leave_db` created by `docker/postgres-init.sql`),
-`identity-service`, `leave-service` and `api-gateway`. Only the gateway publishes a host port (`GATEWAY_PORT`, default 8080).
+`identity-service`, `leave-service` and `api-gateway`. Only the gateway publishes a host port (`GATEWAY_PORT`, default 8000).
 Change `JWT_SECRET`, `INTERNAL_API_KEY` and `POSTGRES_PASSWORD` for anything other than local use.
 
 ## Run locally (without Docker for the services)

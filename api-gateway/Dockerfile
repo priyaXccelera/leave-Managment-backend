@@ -9,5 +9,5 @@ RUN groupadd --system app && useradd --system --gid app --no-create-home app
 WORKDIR /app
 COPY --from=build /build/api-gateway/target/api-gateway.jar /app/app.jar
 USER app
-EXPOSE 8080
+EXPOSE 8000
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "/app/app.jar"]

@@ -21,6 +21,11 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.webjars</groupId>
+            <artifactId>swagger-ui</artifactId>
+            <version>5.17.14</version>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
@@ -29,6 +34,19 @@
 
     <build>
         <finalName>api-gateway</finalName>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <!-- single source of truth for the served OpenAPI spec -->
+                <directory>${project.basedir}/../docs</directory>
+                <includes>
+                    <include>openapi.yaml</include>
+                </includes>
+                <targetPath>openapi</targetPath>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

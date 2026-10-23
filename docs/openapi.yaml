@@ -3,11 +3,12 @@ info:
   title: Employee Leave Management API
   version: 1.0.0
   description: |
-    Public REST contract exposed by the api-gateway (port 8080). Every response uses the envelope
+    Public REST contract exposed by the api-gateway (port 8000). Every response uses the envelope
     `{success, data, meta?}` or `{success:false, error:{code,message,details[]}}`.
     `/internal/**` endpoints (service to service, `X-Internal-Key`) are not routed by the gateway and not listed here.
 servers:
-  - url: http://localhost:8080
+  - url: /
+    description: This gateway (same origin as the Swagger UI)
 security:
   - bearerAuth: []
 tags:
