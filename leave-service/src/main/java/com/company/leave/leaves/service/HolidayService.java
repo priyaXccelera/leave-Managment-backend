@@ -7,13 +7,19 @@ import com.company.leave.leaves.dto.MasterDtos.HolidayDto;
 import com.company.leave.leaves.dto.MasterDtos.HolidayRequest;
 import com.company.leave.leaves.mapper.MasterMapper;
 import com.company.leave.leaves.repo.HolidayRepository;
+import com.company.leave.leaves.web.PageRequests;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.util.Set;
 
 @Service
 public class HolidayService {
+
+    static final Set<String> SORT_FIELDS = Set.of("id", "date", "name", "type");
+    private static final int DEFAULT_PAGE_SIZE = 50;
 
     private final HolidayRepository holidays;
 
@@ -21,11 +27,13 @@ public class HolidayService {
         this.holidays = holidays;
     }
 
-    /** Holidays of the year (default: current), by date. */
+    /** Holidays of the year (default: current), by date unless sorted otherwise; paged in the database. */
     @Transactional(readOnly = true)
-    public List<HolidayDto> list(Integer year) {
+    public Page<HolidayDto> list(Integer year, Integer page, Integer pageSize, String sort) {
         int y = year == null ? BalanceService.currentYear() : year;
-        return holidays.findByYearOrderByDate(y).stream().map(MasterMapper::toDto).toList();
+        Pageable pageable = PageRequests.of(page, pageSize == null ? DEFAULT_PAGE_SIZE : pageSize, sort,
+                SORT_FIELDS, "date,asc");
+        return holidays.findByYear(y, pageable).map(MasterMapper::toDto);
     }
 
     /** @throws ApiException 409 DUPLICATE_HOLIDAY when a holiday already exists on that date */

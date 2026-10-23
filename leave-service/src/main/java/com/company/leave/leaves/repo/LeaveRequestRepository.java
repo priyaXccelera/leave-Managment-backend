@@ -3,6 +3,7 @@ package com.company.leave.leaves.repo;
 import com.company.leave.leaves.domain.Enums.RequestStatus;
 import com.company.leave.leaves.domain.LeaveRequest;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
@@ -66,6 +67,22 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
 
     /** Escalation candidates: requests in the status that were applied before the cut-off. */
     List<LeaveRequest> findByStatusAndAppliedOnBefore(RequestStatus status, Instant cutoff);
+
+    /** Keyset-paged escalation candidates (ascending id, strictly after {@code afterId}). */
+    List<LeaveRequest> findByStatusAndAppliedOnBeforeAndIdGreaterThanOrderByIdAsc(RequestStatus status,
+                                                                                  Instant cutoff, Long afterId,
+                                                                                  Pageable pageable);
+
+    /** The employee's upcoming (not yet finished) requests in the given statuses, soonest first. */
+    List<LeaveRequest> findByEmployeeIdAndStatusInAndToDateGreaterThanEqualOrderByFromDateAscIdAsc(
+            Long employeeId, Collection<RequestStatus> statuses, LocalDate day, Pageable pageable);
+
+    /**
+     * Takes a transaction-scoped advisory lock keyed on the employee so that concurrent applications of
+     * the same employee are validated (overlap check) and stored one after the other.
+     */
+    @Query(value = "select count(*) from (select pg_advisory_xact_lock(:key)) l", nativeQuery = true)
+    long lockEmployee(@Param("key") long key);
 
     long countByStatus(RequestStatus status);
 

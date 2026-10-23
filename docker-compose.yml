@@ -1,0 +1,107 @@
+name: leave-management
+
+x-java-healthcheck: &java-healthcheck
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  start_period: 30s
+
+services:
+  postgres:
+    image: postgres:17.2
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  identity-service:
+    build:
+      context: .
+      dockerfile: identity-service/Dockerfile
+    restart: unless-stopped
+    environment:
+      IDENTITY_DB_URL: jdbc:postgresql://postgres:5432/identity_db
+      IDENTITY_DB_USER: ${POSTGRES_USER:-postgres}
+      IDENTITY_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      JWT_SECRET: ${JWT_SECRET:-change-me-dev-secret-at-least-32-bytes-long-0123456789}
+      ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-3600}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-change-me-internal-key}
+      LEAVE_SERVICE_URL: http://leave-service:8082
+      SEED_PASSWORD: ${SEED_PASSWORD:-Password@123}
+      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-10}
+      LOGIN_RATE_WINDOW_SECONDS: ${LOGIN_RATE_WINDOW_SECONDS:-60}
+    expose:
+      - "8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      <<: *java-healthcheck
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8081 && printf 'GET /health HTTP/1.0\\r\\n\\r\\n' >&3 && head -n1 <&3 | grep -q 200"]
+    stop_grace_period: 30s
+
+  leave-service:
+    build:
+      context: .
+      dockerfile: leave-service/Dockerfile
+    restart: unless-stopped
+    environment:
+      LEAVE_DB_URL: jdbc:postgresql://postgres:5432/leave_db
+      LEAVE_DB_USER: ${POSTGRES_USER:-postgres}
+      LEAVE_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      JWT_SECRET: ${JWT_SECRET:-change-me-dev-secret-at-least-32-bytes-long-0123456789}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-change-me-internal-key}
+      IDENTITY_SERVICE_URL: http://identity-service:8081
+      WEEKEND_DAYS: ${WEEKEND_DAYS:-SATURDAY,SUNDAY}
+      BACKDATE_DAYS: ${BACKDATE_DAYS:-7}
+      ESCALATION_DAYS: ${ESCALATION_DAYS:-3}
+      ESCALATION_CRON: ${ESCALATION_CRON:-0 0 * * * *}
+      YEAR_END_CRON: ${YEAR_END_CRON:-0 10 0 1 1 *}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-5}
+      UPLOAD_DIR: /data/uploads
+    expose:
+      - "8082"
+    volumes:
+      - leave-uploads:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      <<: *java-healthcheck
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8082 && printf 'GET /health HTTP/1.0\\r\\n\\r\\n' >&3 && head -n1 <&3 | grep -q 200"]
+    stop_grace_period: 30s
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    restart: unless-stopped
+    environment:
+      IDENTITY_SERVICE_URL: http://identity-service:8081
+      LEAVE_SERVICE_URL: http://leave-service:8082
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    depends_on:
+      identity-service:
+        condition: service_healthy
+      leave-service:
+        condition: service_healthy
+    healthcheck:
+      <<: *java-healthcheck
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health HTTP/1.0\\r\\n\\r\\n' >&3 && head -n1 <&3 | grep -q 200"]
+    stop_grace_period: 30s
+
+volumes:
+  postgres-data:
+  leave-uploads:

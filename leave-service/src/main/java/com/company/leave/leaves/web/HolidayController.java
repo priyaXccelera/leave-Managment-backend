@@ -6,6 +6,7 @@ import com.company.leave.leaves.dto.MasterDtos.HolidayDto;
 import com.company.leave.leaves.dto.MasterDtos.HolidayRequest;
 import com.company.leave.leaves.service.HolidayService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,9 +32,14 @@ public class HolidayController {
     }
 
     @GetMapping
-    public ApiResponse<List<HolidayDto>> list(@RequestParam(required = false) Integer year) {
+    public ApiResponse<List<HolidayDto>> list(@RequestParam(required = false) Integer year,
+                                              @RequestParam(required = false) Integer page,
+                                              @RequestParam(required = false) Integer pageSize,
+                                              @RequestParam(required = false) String sort) {
         CurrentUser.get();
-        return ApiResponse.ok(service.list(year));
+        Page<HolidayDto> result = service.list(year, page, pageSize, sort);
+        return ApiResponse.page(result.getContent(), result.getNumber() + 1, result.getSize(),
+                result.getTotalElements());
     }
 
     @PostMapping

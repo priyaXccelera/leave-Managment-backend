@@ -7,14 +7,20 @@ import com.company.leave.leaves.dto.MasterDtos.LeaveTypeDto;
 import com.company.leave.leaves.dto.MasterDtos.LeaveTypeRequest;
 import com.company.leave.leaves.mapper.MasterMapper;
 import com.company.leave.leaves.repo.LeaveTypeRepository;
+import com.company.leave.leaves.web.PageRequests;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.List;
+import java.util.Set;
 
 @Service
 public class LeaveTypeService {
+
+    static final Set<String> SORT_FIELDS = Set.of("id", "name", "code", "yearlyQuota");
+    private static final int DEFAULT_PAGE_SIZE = 50;
 
     private final LeaveTypeRepository leaveTypes;
 
@@ -22,12 +28,13 @@ public class LeaveTypeService {
         this.leaveTypes = leaveTypes;
     }
 
-    /** Active types for everyone; HR also sees inactive ones. */
+    /** Active types for everyone; HR also sees inactive ones. Paged in the database (default page size 50). */
     @Transactional(readOnly = true)
-    public List<LeaveTypeDto> list(AuthUser user) {
-        List<LeaveType> types = user.isHr() ? leaveTypes.findAllByOrderByIdAsc()
-                : leaveTypes.findByActiveTrueOrderByIdAsc();
-        return types.stream().map(MasterMapper::toDto).toList();
+    public Page<LeaveTypeDto> list(AuthUser user, Integer page, Integer pageSize, String sort) {
+        Pageable pageable = PageRequests.of(page, pageSize == null ? DEFAULT_PAGE_SIZE : pageSize, sort,
+                SORT_FIELDS, "id,asc");
+        Page<LeaveType> types = user.isHr() ? leaveTypes.findAll(pageable) : leaveTypes.findByActiveTrue(pageable);
+        return types.map(MasterMapper::toDto);
     }
 
     @Transactional(readOnly = true)

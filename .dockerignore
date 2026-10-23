@@ -1,0 +1,8 @@
+**/target/
+.m2repo/
+.git/
+.env
+.idea/
+uploads/
+logs/
+.codegraph/

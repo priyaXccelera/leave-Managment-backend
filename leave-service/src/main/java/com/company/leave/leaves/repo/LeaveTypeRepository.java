@@ -1,12 +1,16 @@
 package com.company.leave.leaves.repo;
 
 import com.company.leave.leaves.domain.LeaveType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
 
 public interface LeaveTypeRepository extends JpaRepository<LeaveType, Long> {
+
+    Page<LeaveType> findByActiveTrue(Pageable pageable);
 
     List<LeaveType> findAllByOrderByIdAsc();
 

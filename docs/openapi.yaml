@@ -1,0 +1,765 @@
+openapi: 3.0.3
+info:
+  title: Employee Leave Management API
+  version: 1.0.0
+  description: |
+    Public REST contract exposed by the api-gateway (port 8080). Every response uses the envelope
+    `{success, data, meta?}` or `{success:false, error:{code,message,details[]}}`.
+    `/internal/**` endpoints (service to service, `X-Internal-Key`) are not routed by the gateway and not listed here.
+servers:
+  - url: http://localhost:8080
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+  - name: Employees
+  - name: Leave
+  - name: Admin
+  - name: Reports
+  - name: Misc
+paths:
+  /health:
+    get:
+      tags: [Misc]
+      summary: Health check
+      security: []
+      responses:
+        '200': {description: Gateway is up, content: {application/json: {schema: {$ref: '#/components/schemas/HealthResponse'}}}}
+        '405': {$ref: '#/components/responses/MethodNotAllowed'}
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with employee code or email
+      security: []
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/LoginRequest'}}}}
+      responses:
+        '200': {description: Tokens and user, content: {application/json: {schema: {$ref: '#/components/schemas/LoginEnvelope'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {description: Account inactive (ACCOUNT_INACTIVE), content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        '429': {description: Rate limited (RATE_LIMITED), content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Rotate refresh token and issue a new access token
+      security: []
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/RefreshRequest'}}}}
+      responses:
+        '200': {description: New tokens, content: {application/json: {schema: {$ref: '#/components/schemas/LoginEnvelope'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {description: Account inactive, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout (revokes refresh token)
+      requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/RefreshRequest'}}}}
+      responses:
+        '200': {$ref: '#/components/responses/Ok'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change own password
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePasswordRequest'}}}}
+      responses:
+        '200': {$ref: '#/components/responses/Ok'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user (role, manager, department)
+      responses:
+        '200': {description: Current user, content: {application/json: {schema: {$ref: '#/components/schemas/UserEnvelope'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/employees:
+    get:
+      tags: [Employees]
+      summary: List employees (HR)
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - {$ref: '#/components/parameters/Sort'}
+        - {name: role, in: query, schema: {$ref: '#/components/schemas/Role'}}
+        - {name: department, in: query, schema: {type: string}}
+        - {name: active, in: query, schema: {type: boolean}}
+        - {name: q, in: query, description: Search name, email or code, schema: {type: string}}
+      responses:
+        '200': {description: Page of employees, content: {application/json: {schema: {$ref: '#/components/schemas/UserListEnvelope'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      tags: [Employees]
+      summary: Create employee (HR); creates pro-rated current-year balances
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/EmployeeRequest'}}}}
+      responses:
+        '201': {description: Created, content: {application/json: {schema: {$ref: '#/components/schemas/UserEnvelope'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/employees/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      tags: [Employees]
+      summary: Get employee (HR)
+      responses:
+        '200': {description: Employee, content: {application/json: {schema: {$ref: '#/components/schemas/UserEnvelope'}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Employees]
+      summary: Update employee (HR)
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/EmployeeRequest'}}}}
+      responses:
+        '200': {description: Updated, content: {application/json: {schema: {$ref: '#/components/schemas/UserEnvelope'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/employees/{id}/status:
+    patch:
+      tags: [Employees]
+      summary: Activate or deactivate (HR)
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [active], properties: {active: {type: boolean}}}}}}
+      responses:
+        '200': {description: Updated, content: {application/json: {schema: {$ref: '#/components/schemas/UserEnvelope'}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/employees/{id}/leave-balances:
+    get:
+      tags: [Admin]
+      summary: Employee balances (HR)
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+        - {name: year, in: query, schema: {type: integer}}
+      responses:
+        '200': {description: Balances, content: {application/json: {schema: {$ref: '#/components/schemas/BalanceListEnvelope'}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/employees/{id}/leave-balances/adjust:
+    post:
+      tags: [Admin]
+      summary: Adjust a balance with mandatory reason (HR); logged
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/AdjustRequest'}}}}
+      responses:
+        '200': {description: Updated balance, content: {application/json: {schema: {$ref: '#/components/schemas/BalanceEnvelope'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+  /api/v1/leave-balances/me:
+    get:
+      tags: [Leave]
+      summary: Own balances
+      parameters: [{name: year, in: query, schema: {type: integer}}]
+      responses:
+        '200': {description: Balances, content: {application/json: {schema: {$ref: '#/components/schemas/BalanceListEnvelope'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/leave-types:
+    get:
+      tags: [Admin]
+      summary: Leave types (active only; HR sees all)
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - {$ref: '#/components/parameters/Sort'}
+      responses:
+        '200': {description: Page of leave types, content: {application/json: {schema: {$ref: '#/components/schemas/LeaveTypeListEnvelope'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+    post:
+      tags: [Admin]
+      summary: Create leave type (HR)
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/LeaveType'}}}}
+      responses:
+        '201': {description: Created, content: {application/json: {schema: {$ref: '#/components/schemas/LeaveTypeEnvelope'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/leave-types/{id}:
+    put:
+      tags: [Admin]
+      summary: Update leave type (HR)
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/LeaveType'}}}}
+      responses:
+        '200': {description: Updated, content: {application/json: {schema: {$ref: '#/components/schemas/LeaveTypeEnvelope'}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/holidays:
+    get:
+      tags: [Admin]
+      summary: Holidays by year
+      parameters:
+        - {name: year, in: query, schema: {type: integer}}
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+      responses:
+        '200': {description: Page of holidays, content: {application/json: {schema: {$ref: '#/components/schemas/HolidayListEnvelope'}}}}
+    post:
+      tags: [Admin]
+      summary: Create holiday (HR)
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/HolidayRequest'}}}}
+      responses:
+        '201': {description: Created, content: {application/json: {schema: {$ref: '#/components/schemas/HolidayEnvelope'}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/holidays/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    put:
+      tags: [Admin]
+      summary: Update holiday (HR)
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/HolidayRequest'}}}}
+      responses:
+        '200': {description: Updated, content: {application/json: {schema: {$ref: '#/components/schemas/HolidayEnvelope'}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+    delete:
+      tags: [Admin]
+      summary: Delete holiday (HR)
+      responses:
+        '200': {$ref: '#/components/responses/Ok'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/leave-requests/preview:
+    post:
+      tags: [Leave]
+      summary: Preview working days and validity before submission
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/PreviewRequest'}}}}
+      responses:
+        '200': {description: Preview, content: {application/json: {schema: {$ref: '#/components/schemas/PreviewEnvelope'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+  /api/v1/leave-requests:
+    post:
+      tags: [Leave]
+      summary: Apply for leave (JSON or multipart with optional `attachment` file)
+      requestBody:
+        required: true
+        content:
+          application/json: {schema: {$ref: '#/components/schemas/ApplyRequest'}}
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                data: {allOf: [{$ref: '#/components/schemas/ApplyRequest'}], description: JSON part; alternatively send the flat form fields}
+                leaveTypeId: {type: integer}
+                fromDate: {type: string, format: date}
+                toDate: {type: string, format: date}
+                halfDay: {type: boolean}
+                halfDaySession: {$ref: '#/components/schemas/HalfDaySession'}
+                reason: {type: string}
+                contactNumber: {type: string}
+                attachment: {type: string, format: binary, description: pdf, png or jpg}
+      responses:
+        '201': {description: Created, content: {application/json: {schema: {$ref: '#/components/schemas/LeaveRequestEnvelope'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+    get:
+      tags: [Leave]
+      summary: All requests (HR)
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - {$ref: '#/components/parameters/Sort'}
+        - {$ref: '#/components/parameters/Status'}
+        - {name: employeeId, in: query, schema: {type: integer}}
+        - {name: department, in: query, schema: {type: string}}
+        - {name: leaveTypeId, in: query, schema: {type: integer}}
+        - {$ref: '#/components/parameters/From'}
+        - {$ref: '#/components/parameters/To'}
+      responses:
+        '200': {description: Page of requests, content: {application/json: {schema: {$ref: '#/components/schemas/LeaveRequestListEnvelope'}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/leave-requests/me:
+    get:
+      tags: [Leave]
+      summary: Own requests
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - {$ref: '#/components/parameters/Sort'}
+        - {$ref: '#/components/parameters/Status'}
+        - {name: leaveTypeId, in: query, schema: {type: integer}}
+        - {$ref: '#/components/parameters/From'}
+        - {$ref: '#/components/parameters/To'}
+      responses:
+        '200': {description: Page of requests, content: {application/json: {schema: {$ref: '#/components/schemas/LeaveRequestListEnvelope'}}}}
+  /api/v1/leave-requests/pending-for-manager:
+    get:
+      tags: [Leave]
+      summary: PENDING_MANAGER requests of direct reports (MANAGER)
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - {$ref: '#/components/parameters/Sort'}
+      responses:
+        '200': {description: Page of requests, content: {application/json: {schema: {$ref: '#/components/schemas/LeaveRequestListEnvelope'}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/leave-requests/team:
+    get:
+      tags: [Leave]
+      summary: All requests of direct reports (MANAGER)
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - {$ref: '#/components/parameters/Sort'}
+        - {$ref: '#/components/parameters/Status'}
+        - {$ref: '#/components/parameters/From'}
+        - {$ref: '#/components/parameters/To'}
+      responses:
+        '200': {description: Page of requests, content: {application/json: {schema: {$ref: '#/components/schemas/LeaveRequestListEnvelope'}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/leave-requests/pending-for-hr:
+    get:
+      tags: [Leave]
+      summary: PENDING_HR requests (HR)
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - {$ref: '#/components/parameters/Sort'}
+      responses:
+        '200': {description: Page of requests, content: {application/json: {schema: {$ref: '#/components/schemas/LeaveRequestListEnvelope'}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/leave-requests/{id}:
+    get:
+      tags: [Leave]
+      summary: Request detail with approval history (owner, manager of owner, HR)
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200': {description: Request, content: {application/json: {schema: {$ref: '#/components/schemas/LeaveRequestEnvelope'}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/leave-requests/{id}/attachment:
+    get:
+      tags: [Leave]
+      summary: Download attachment
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200': {description: File, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/leave-requests/{id}/cancel:
+    post:
+      tags: [Leave]
+      summary: Cancel own request (pending at any stage, or approved before start date)
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/CancelRequest'}}}}
+      responses:
+        '200': {description: Cancelled, content: {application/json: {schema: {$ref: '#/components/schemas/LeaveRequestEnvelope'}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/leave-requests/{id}/manager-action:
+    post:
+      tags: [Leave]
+      summary: Manager approve or reject (comment mandatory on reject)
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ActionRequest'}}}}
+      responses:
+        '200': {description: Updated, content: {application/json: {schema: {$ref: '#/components/schemas/LeaveRequestEnvelope'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/leave-requests/{id}/hr-action:
+    post:
+      tags: [Leave]
+      summary: HR approve or reject (comment mandatory on reject; not for own request)
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ActionRequest'}}}}
+      responses:
+        '200': {description: Updated, content: {application/json: {schema: {$ref: '#/components/schemas/LeaveRequestEnvelope'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/team/calendar:
+    get:
+      tags: [Leave]
+      summary: Approved and pending leaves of the manager's team (or a department for HR)
+      parameters:
+        - {name: from, in: query, required: true, schema: {type: string, format: date}}
+        - {name: to, in: query, required: true, schema: {type: string, format: date}}
+        - {name: department, in: query, description: HR only, schema: {type: string}}
+      responses:
+        '200': {description: Entries, content: {application/json: {schema: {$ref: '#/components/schemas/CalendarEnvelope'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/reports/summary:
+    get:
+      tags: [Reports]
+      summary: Summary report (HR)
+      parameters:
+        - {name: groupBy, in: query, required: true, schema: {type: string, enum: [employee, department, leaveType, month]}}
+        - {name: year, in: query, schema: {type: integer}}
+      responses:
+        '200': {description: Rows, content: {application/json: {schema: {$ref: '#/components/schemas/SummaryEnvelope'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/reports/on-leave:
+    get:
+      tags: [Reports]
+      summary: Who is on leave today or in a date range (HR)
+      parameters:
+        - {$ref: '#/components/parameters/From'}
+        - {$ref: '#/components/parameters/To'}
+      responses:
+        '200': {description: Rows, content: {application/json: {schema: {type: object}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/reports/export:
+    get:
+      tags: [Reports]
+      summary: CSV export (HR)
+      parameters:
+        - {name: year, in: query, schema: {type: integer}}
+        - {name: status, in: query, schema: {$ref: '#/components/schemas/RequestStatus'}}
+        - {name: leaveTypeId, in: query, schema: {type: integer}}
+      responses:
+        '200': {description: CSV file, content: {text/csv: {schema: {type: string}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/notifications:
+    get:
+      tags: [Misc]
+      summary: Own notifications
+      parameters:
+        - {name: unread, in: query, schema: {type: boolean}}
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+      responses:
+        '200': {description: Page of notifications, content: {application/json: {schema: {$ref: '#/components/schemas/NotificationListEnvelope'}}}}
+  /api/v1/notifications/read-all:
+    patch:
+      tags: [Misc]
+      summary: Mark all notifications read
+      responses:
+        '200': {$ref: '#/components/responses/Ok'}
+  /api/v1/notifications/{id}/read:
+    patch:
+      tags: [Misc]
+      summary: Mark a notification read
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200': {description: Updated, content: {application/json: {schema: {type: object}}}}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/dashboard:
+    get:
+      tags: [Misc]
+      summary: Role-specific dashboard
+      responses:
+        '200': {description: Dashboard, content: {application/json: {schema: {$ref: '#/components/schemas/DashboardEnvelope'}}}}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  parameters:
+    Id: {name: id, in: path, required: true, schema: {type: integer, format: int64}}
+    Page: {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
+    PageSize: {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+    Sort: {name: sort, in: query, description: 'field,asc|desc (whitelisted fields)', schema: {type: string}}
+    Status: {name: status, in: query, schema: {$ref: '#/components/schemas/RequestStatus'}}
+    From: {name: from, in: query, schema: {type: string, format: date}}
+    To: {name: to, in: query, schema: {type: string, format: date}}
+  responses:
+    Ok: {description: Success without data, content: {application/json: {schema: {$ref: '#/components/schemas/OkResponse'}}}}
+    BadRequest: {description: Malformed body or validation error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+    Unauthorized: {description: Missing or invalid credentials, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+    Forbidden: {description: Authenticated but not permitted, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+    NotFound: {description: Resource not found, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+    MethodNotAllowed:
+      description: Wrong method; `Allow` header lists permitted methods
+      headers: {Allow: {schema: {type: string}}}
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    Conflict: {description: Conflict or invalid workflow transition, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+    Unprocessable: {description: Business rule violation (e.g. INSUFFICIENT_BALANCE), content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  schemas:
+    Meta:
+      type: object
+      properties: {page: {type: integer}, pageSize: {type: integer}, total: {type: integer, format: int64}}
+    FieldError:
+      type: object
+      properties: {field: {type: string}, message: {type: string}}
+    ErrorResponse:
+      type: object
+      properties:
+        success: {type: boolean, example: false}
+        error:
+          type: object
+          properties:
+            code: {type: string, example: VALIDATION_ERROR}
+            message: {type: string}
+            details: {type: array, items: {$ref: '#/components/schemas/FieldError'}}
+    OkResponse:
+      type: object
+      properties: {success: {type: boolean, example: true}}
+    HealthResponse:
+      type: object
+      properties:
+        success: {type: boolean}
+        data: {type: object, properties: {status: {type: string, example: UP}}}
+    Role: {type: string, enum: [EMPLOYEE, MANAGER, HR]}
+    RequestStatus: {type: string, enum: [PENDING_MANAGER, PENDING_HR, APPROVED, REJECTED_BY_MANAGER, REJECTED_BY_HR, CANCELLED]}
+    Stage: {type: string, enum: [MANAGER, HR, NONE]}
+    HalfDaySession: {type: string, enum: [FIRST_HALF, SECOND_HALF]}
+    HistoryAction: {type: string, enum: [APPLIED, MANAGER_APPROVED, MANAGER_REJECTED, HR_APPROVED, HR_REJECTED, CANCELLED, WITHDRAWN, ESCALATED]}
+    LoginRequest:
+      type: object
+      required: [identifier, password]
+      properties: {identifier: {type: string, description: Employee code or email}, password: {type: string}}
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties: {refreshToken: {type: string}}
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties: {currentPassword: {type: string}, newPassword: {type: string, minLength: 8}}
+    ManagerRef:
+      type: object
+      nullable: true
+      properties: {id: {type: integer, format: int64}, employeeCode: {type: string}, name: {type: string}}
+    User:
+      type: object
+      properties:
+        id: {type: integer, format: int64}
+        employeeCode: {type: string}
+        name: {type: string}
+        email: {type: string}
+        role: {$ref: '#/components/schemas/Role'}
+        department: {type: string}
+        designation: {type: string}
+        dateOfJoining: {type: string, format: date}
+        managerId: {type: integer, format: int64, nullable: true}
+        manager: {$ref: '#/components/schemas/ManagerRef'}
+        active: {type: boolean}
+    LoginData:
+      type: object
+      properties:
+        token: {type: string}
+        accessToken: {type: string}
+        refreshToken: {type: string}
+        expiresIn: {type: integer, description: Access token lifetime in seconds}
+        user: {$ref: '#/components/schemas/User'}
+    LoginEnvelope:
+      type: object
+      properties: {success: {type: boolean}, data: {$ref: '#/components/schemas/LoginData'}}
+    UserEnvelope:
+      type: object
+      properties: {success: {type: boolean}, data: {$ref: '#/components/schemas/User'}}
+    UserListEnvelope:
+      type: object
+      properties: {success: {type: boolean}, data: {type: array, items: {$ref: '#/components/schemas/User'}}, meta: {$ref: '#/components/schemas/Meta'}}
+    EmployeeRequest:
+      type: object
+      required: [employeeCode, name, email, role, department, designation, dateOfJoining]
+      properties:
+        employeeCode: {type: string}
+        name: {type: string}
+        email: {type: string, format: email}
+        password: {type: string, minLength: 8, description: Required on create, optional reset on update}
+        role: {$ref: '#/components/schemas/Role'}
+        department: {type: string}
+        designation: {type: string}
+        dateOfJoining: {type: string, format: date}
+        managerId: {type: integer, format: int64, nullable: true}
+    LeaveType:
+      type: object
+      required: [name, code, yearlyQuota]
+      properties:
+        id: {type: integer, format: int64, readOnly: true}
+        name: {type: string}
+        code: {type: string}
+        yearlyQuota: {type: number}
+        unlimited: {type: boolean}
+        paid: {type: boolean}
+        carryForwardAllowed: {type: boolean}
+        maxCarryForwardDays: {type: number}
+        halfDayAllowed: {type: boolean}
+        attachmentRequired: {type: boolean}
+        attachmentRequiredAfterDays: {type: integer, nullable: true}
+        minNoticeDays: {type: integer}
+        active: {type: boolean}
+    LeaveTypeEnvelope:
+      type: object
+      properties: {success: {type: boolean}, data: {$ref: '#/components/schemas/LeaveType'}}
+    LeaveTypeListEnvelope:
+      type: object
+      properties: {success: {type: boolean}, data: {type: array, items: {$ref: '#/components/schemas/LeaveType'}}, meta: {$ref: '#/components/schemas/Meta'}}
+    HolidayRequest:
+      type: object
+      required: [date, name, type]
+      properties: {date: {type: string, format: date}, name: {type: string}, type: {type: string, enum: [PUBLIC, OPTIONAL]}}
+    Holiday:
+      type: object
+      properties:
+        id: {type: integer, format: int64}
+        date: {type: string, format: date}
+        name: {type: string}
+        type: {type: string, enum: [PUBLIC, OPTIONAL]}
+        year: {type: integer}
+    HolidayEnvelope:
+      type: object
+      properties: {success: {type: boolean}, data: {$ref: '#/components/schemas/Holiday'}}
+    HolidayListEnvelope:
+      type: object
+      properties: {success: {type: boolean}, data: {type: array, items: {$ref: '#/components/schemas/Holiday'}}, meta: {$ref: '#/components/schemas/Meta'}}
+    Balance:
+      type: object
+      properties:
+        leaveTypeId: {type: integer, format: int64}
+        leaveTypeName: {type: string}
+        leaveTypeCode: {type: string}
+        code: {type: string}
+        year: {type: integer}
+        total: {type: number}
+        used: {type: number}
+        pending: {type: number}
+        available: {type: number, description: total + carriedForward - used - pending}
+        carriedForward: {type: number}
+        unlimited: {type: boolean}
+    BalanceEnvelope:
+      type: object
+      properties: {success: {type: boolean}, data: {$ref: '#/components/schemas/Balance'}}
+    BalanceListEnvelope:
+      type: object
+      properties: {success: {type: boolean}, data: {type: array, items: {$ref: '#/components/schemas/Balance'}}}
+    AdjustRequest:
+      type: object
+      required: [leaveTypeId, days, reason]
+      properties:
+        leaveTypeId: {type: integer, format: int64}
+        year: {type: integer}
+        days: {type: number, description: Positive or negative adjustment of the total}
+        reason: {type: string}
+    PreviewRequest:
+      type: object
+      required: [leaveTypeId, fromDate, toDate]
+      properties:
+        leaveTypeId: {type: integer, format: int64}
+        fromDate: {type: string, format: date}
+        toDate: {type: string, format: date}
+        halfDay: {type: boolean}
+        halfDaySession: {$ref: '#/components/schemas/HalfDaySession'}
+    PreviewEnvelope:
+      type: object
+      properties:
+        success: {type: boolean}
+        data:
+          type: object
+          properties:
+            workingDays: {type: number}
+            excludedDates: {type: array, items: {type: string, format: date}}
+            availableBalance: {type: number}
+            isValid: {type: boolean}
+            warnings: {type: array, items: {type: string}}
+    ApplyRequest:
+      type: object
+      required: [leaveTypeId, fromDate, toDate, reason]
+      properties:
+        leaveTypeId: {type: integer, format: int64}
+        fromDate: {type: string, format: date}
+        toDate: {type: string, format: date}
+        halfDay: {type: boolean}
+        halfDaySession: {$ref: '#/components/schemas/HalfDaySession'}
+        reason: {type: string}
+        contactNumber: {type: string}
+    ActionRequest:
+      type: object
+      required: [action]
+      properties: {action: {type: string, enum: [APPROVE, REJECT]}, comment: {type: string, description: Mandatory when rejecting}}
+    CancelRequest:
+      type: object
+      properties: {comment: {type: string}}
+    HistoryEntry:
+      type: object
+      properties:
+        action: {$ref: '#/components/schemas/HistoryAction'}
+        actorName: {type: string}
+        actorRole: {type: string}
+        comment: {type: string, nullable: true}
+        timestamp: {type: string, format: date-time}
+    LeaveRequest:
+      type: object
+      properties:
+        id: {type: integer, format: int64}
+        employee:
+          type: object
+          properties: {id: {type: integer, format: int64}, employeeCode: {type: string}, name: {type: string}, department: {type: string}}
+        leaveType:
+          type: object
+          properties: {id: {type: integer, format: int64}, name: {type: string}, code: {type: string}}
+        fromDate: {type: string, format: date}
+        toDate: {type: string, format: date}
+        halfDay: {type: boolean}
+        halfDaySession: {$ref: '#/components/schemas/HalfDaySession'}
+        workingDays: {type: number}
+        reason: {type: string}
+        contactNumber: {type: string, nullable: true}
+        attachmentUrl: {type: string, nullable: true}
+        status: {$ref: '#/components/schemas/RequestStatus'}
+        currentStage: {$ref: '#/components/schemas/Stage'}
+        appliedOn: {type: string, format: date-time}
+        finalDecisionDate: {type: string, format: date-time, nullable: true}
+        history: {type: array, items: {$ref: '#/components/schemas/HistoryEntry'}}
+    LeaveRequestEnvelope:
+      type: object
+      properties: {success: {type: boolean}, data: {$ref: '#/components/schemas/LeaveRequest'}}
+    LeaveRequestListEnvelope:
+      type: object
+      properties: {success: {type: boolean}, data: {type: array, items: {$ref: '#/components/schemas/LeaveRequest'}}, meta: {$ref: '#/components/schemas/Meta'}}
+    CalendarEntry:
+      type: object
+      properties:
+        requestId: {type: integer, format: int64}
+        employeeId: {type: integer, format: int64}
+        employeeName: {type: string}
+        department: {type: string}
+        leaveType: {type: string}
+        fromDate: {type: string, format: date}
+        toDate: {type: string, format: date}
+        status: {$ref: '#/components/schemas/RequestStatus'}
+        workingDays: {type: number}
+    CalendarEnvelope:
+      type: object
+      properties: {success: {type: boolean}, data: {type: array, items: {$ref: '#/components/schemas/CalendarEntry'}}}
+    SummaryRow:
+      type: object
+      properties:
+        key: {type: string}
+        label: {type: string}
+        requests: {type: integer}
+        days: {type: number}
+        approved: {type: integer}
+        pending: {type: integer}
+        rejected: {type: integer}
+    SummaryEnvelope:
+      type: object
+      properties: {success: {type: boolean}, data: {type: array, items: {$ref: '#/components/schemas/SummaryRow'}}}
+    Notification:
+      type: object
+      properties:
+        id: {type: integer, format: int64}
+        message: {type: string}
+        requestId: {type: integer, format: int64, nullable: true}
+        read: {type: boolean}
+        createdAt: {type: string, format: date-time}
+    NotificationListEnvelope:
+      type: object
+      properties: {success: {type: boolean}, data: {type: array, items: {$ref: '#/components/schemas/Notification'}}, meta: {$ref: '#/components/schemas/Meta'}}
+    DashboardEnvelope:
+      type: object
+      properties:
+        success: {type: boolean}
+        data:
+          type: object
+          properties:
+            role: {$ref: '#/components/schemas/Role'}
+            pendingApprovals: {type: integer}
+            onLeaveToday: {type: integer}
+            unreadNotifications: {type: integer}
+            balances: {type: array, items: {$ref: '#/components/schemas/Balance'}}
+            upcomingLeaves: {type: array, items: {$ref: '#/components/schemas/LeaveRequest'}}
+            upcomingHolidays: {type: array, items: {$ref: '#/components/schemas/Holiday'}}

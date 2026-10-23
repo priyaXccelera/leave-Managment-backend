@@ -6,6 +6,7 @@ import com.company.leave.leaves.dto.MasterDtos.LeaveTypeDto;
 import com.company.leave.leaves.dto.MasterDtos.LeaveTypeRequest;
 import com.company.leave.leaves.service.LeaveTypeService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -29,8 +31,12 @@ public class LeaveTypeController {
     }
 
     @GetMapping
-    public ApiResponse<List<LeaveTypeDto>> list() {
-        return ApiResponse.ok(service.list(CurrentUser.get()));
+    public ApiResponse<List<LeaveTypeDto>> list(@RequestParam(required = false) Integer page,
+                                                @RequestParam(required = false) Integer pageSize,
+                                                @RequestParam(required = false) String sort) {
+        Page<LeaveTypeDto> result = service.list(CurrentUser.get(), page, pageSize, sort);
+        return ApiResponse.page(result.getContent(), result.getNumber() + 1, result.getSize(),
+                result.getTotalElements());
     }
 
     @GetMapping("/{id}")
